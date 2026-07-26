@@ -1,0 +1,11 @@
+{
+  "name": "youtube-deepseek-subtitle-translator",
+  "version": "1.8.2",
+  "private": true,
+  "description": "A dependency-free Chrome/Edge extension for translating YouTube captions with a user-provided DeepSeek API key.",
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check-extension.js",
+    "dictionary:build": "node scripts/build-dictionary.js"
+  }
+}

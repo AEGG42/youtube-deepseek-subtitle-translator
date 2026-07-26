@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>字幕视觉回归页</title>
+    <link rel="stylesheet" href="../content.css" />
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, "Microsoft YaHei", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #101312;
+        color: #ecf3ef;
+        margin: 0;
+        padding: 30px;
+      }
+
+      h1 {
+        font-size: 20px;
+        margin: 0 0 22px;
+      }
+
+      .gallery {
+        display: grid;
+        gap: 28px;
+      }
+
+      .case {
+        margin: 0;
+      }
+
+      .case figcaption {
+        color: #9dacaa;
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+
+      .html5-video-player {
+        aspect-ratio: 16 / 9;
+        background:
+          radial-gradient(circle at 70% 34%, rgba(236, 188, 126, 0.62) 0 5%, transparent 5.4%),
+          linear-gradient(165deg, transparent 52%, rgba(4, 8, 12, 0.55) 52%),
+          linear-gradient(135deg, #76909a, #22343f 48%, #152027);
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+        isolation: isolate;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .html5-video-player::before {
+        background:
+          linear-gradient(110deg, transparent 0 12%, rgba(255, 255, 255, 0.1) 12.5% 13%, transparent 13.5% 100%),
+          radial-gradient(ellipse at 25% 90%, #385044 0 18%, transparent 18.5%);
+        content: "";
+        inset: 0;
+        position: absolute;
+      }
+
+      .desktop {
+        max-width: 1120px;
+      }
+
+      .compact {
+        max-width: 560px;
+      }
+
+      .ytp-chrome-bottom {
+        background: linear-gradient(transparent, rgba(0, 0, 0, 0.78));
+        bottom: 0;
+        height: 64px;
+        left: 0;
+        position: absolute;
+        right: 0;
+      }
+
+      .ytp-progress-bar {
+        background: rgba(255, 255, 255, 0.3);
+        bottom: 42px;
+        height: 3px;
+        left: 16px;
+        position: absolute;
+        right: 16px;
+      }
+
+      .ytp-progress-bar::before {
+        background: #f03;
+        content: "";
+        inset: 0 58% 0 0;
+        position: absolute;
+      }
+
+      @media (max-width: 700px) {
+        body {
+          padding: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>YouTube DeepSeek 字幕视觉回归</h1>
+    <main class="gallery">
+      <figure class="case">
+        <figcaption>桌面 · 多个碎片合并后的完整语义段</figcaption>
+        <div class="html5-video-player yt-deepseek-translator-active desktop">
+          <div
+            id="yt-deepseek-translator-overlay"
+            class="has-translation"
+            data-mode="bilingual"
+            style="--yt-dst-font-size: 30px; --yt-dst-render-font-size: 30px; --yt-dst-background-opacity: 0.62; --yt-dst-subtitle-bottom: 12%"
+          >
+            <div class="yt-dst-caption-card">
+              <div class="yt-dst-line yt-dst-source">What matters is not predicting every turn, but understanding what remains true when the road changes.</div>
+              <div class="yt-dst-line yt-dst-translation">真正重要的，不是预测每一个转弯，而是理解道路改变时，什么依然成立。</div>
+            </div>
+            <div class="yt-dst-status" hidden></div>
+          </div>
+          <div class="ytp-chrome-bottom"><div class="ytp-progress-bar"></div></div>
+        </div>
+      </figure>
+
+      <figure class="case">
+        <figcaption>小窗 · 下一段积累时保留上一段完整译文</figcaption>
+        <div class="html5-video-player yt-deepseek-translator-active compact">
+          <div
+            id="yt-deepseek-translator-overlay"
+            class="has-translation is-pending is-stale"
+            data-mode="bilingual"
+            style="--yt-dst-font-size: 30px; --yt-dst-render-font-size: 22.5px; --yt-dst-background-opacity: 0.62; --yt-dst-subtitle-bottom: 12%"
+          >
+            <div class="yt-dst-caption-card">
+              <div class="yt-dst-line yt-dst-source">Now the speaker has moved on to a new idea.</div>
+              <div class="yt-dst-line yt-dst-translation">演讲者正在说明这件事。</div>
+            </div>
+            <div class="yt-dst-status" hidden></div>
+          </div>
+          <div class="ytp-chrome-bottom"><div class="ytp-progress-bar"></div></div>
+        </div>
+      </figure>
+
+      <figure class="case">
+        <figcaption>小窗 · 新段首次翻译（不显示未完成片段）</figcaption>
+        <div class="html5-video-player yt-deepseek-translator-active compact">
+          <div
+            id="yt-deepseek-translator-overlay"
+            class="is-pending"
+            data-mode="bilingual"
+            style="--yt-dst-font-size: 30px; --yt-dst-render-font-size: 22.5px; --yt-dst-background-opacity: 0.62; --yt-dst-subtitle-bottom: 12%"
+          >
+            <div class="yt-dst-caption-card">
+              <div class="yt-dst-line yt-dst-source">Now the speaker has started a completely new sentence.</div>
+              <div class="yt-dst-line yt-dst-translation" hidden></div>
+            </div>
+            <div class="yt-dst-status">DeepSeek 翻译中…</div>
+          </div>
+          <div class="ytp-chrome-bottom"><div class="ytp-progress-bar"></div></div>
+        </div>
+      </figure>
+    </main>
+  </body>
+</html>

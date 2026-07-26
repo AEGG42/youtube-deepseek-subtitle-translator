@@ -1,0 +1,14 @@
+# Packaged extension archives
+youtube-deepseek-translator-v*.zip
+
+# Dependencies and generated reports
+node_modules/
+coverage/
+
+# Local environment and editor files
+.env
+.env.*
+.agents/
+.DS_Store
+Thumbs.db
+*.log

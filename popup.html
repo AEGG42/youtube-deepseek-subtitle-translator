@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YouTube DeepSeek 字幕翻译</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <header class="popup-header">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32">
+            <path d="M8.5 7.5h15a5 5 0 0 1 5 5v5a5 5 0 0 1-5 5H17l-6.5 4.5v-4.5h-2a5 5 0 0 1-5-5v-5a5 5 0 0 1 5-5Z" />
+            <path d="m11 13 3 3-3 3m7 0h4" />
+          </svg>
+        </div>
+        <div class="popup-title">
+          <p>字幕翻译</p>
+          <h1>DeepSeek × YouTube</h1>
+        </div>
+        <label class="compact-switch" title="启用或暂停">
+          <input id="popup-enabled" type="checkbox" checked />
+          <span aria-hidden="true"></span>
+        </label>
+      </header>
+
+      <section id="notice" class="notice" hidden>
+        <img src="assets/icons/info-circle.svg" alt="" />
+        <p id="notice-text"></p>
+      </section>
+
+      <section class="status-card" aria-live="polite">
+        <img
+          class="status-illustration"
+          src="assets/popup-youtube-empty-dark.jpg"
+          alt=""
+        />
+        <div class="status-copy">
+          <div class="status-topline">
+            <img
+              id="live-dot"
+              class="live-dot"
+              src="assets/icons/alert-circle.svg"
+              alt=""
+            />
+            <strong id="live-status">未打开 YouTube</strong>
+          </div>
+          <p id="live-detail">
+            打开视频后，扩展会自动读取已开启的字幕。
+          </p>
+        </div>
+      </section>
+
+      <dl class="settings-summary">
+        <div>
+          <dt>
+            <img src="assets/icons/globe.svg" alt="" />
+            目标语言
+          </dt>
+          <dd id="summary-language">简体中文</dd>
+        </div>
+        <div>
+          <dt>
+            <img src="assets/icons/layers-subtract.svg" alt="" />
+            模型
+          </dt>
+          <dd id="summary-model">V4 Flash</dd>
+        </div>
+        <div>
+          <dt>
+            <img src="assets/icons/subtitles.svg" alt="" />
+            显示
+          </dt>
+          <dd id="summary-mode">双语</dd>
+        </div>
+      </dl>
+
+      <div class="popup-actions">
+        <button id="retranslate" class="button secondary" type="button" disabled>
+          <img src="assets/icons/refresh.svg" alt="" />
+          <span>
+            <strong>重译当前字幕</strong>
+            <small id="retranslate-detail">未检测到活动视频</small>
+          </span>
+        </button>
+        <button id="open-options" class="button primary" type="button">
+          <img src="assets/icons/settings.svg" alt="" />
+          打开设置
+        </button>
+      </div>
+
+      <footer class="caption-hint">
+        <img src="assets/icons/info-circle.svg" alt="" />
+        <p>优先预取完整字幕；直播或无法预取时自动使用 CC 实时翻译。</p>
+      </footer>
+    </main>
+    <script src="shared.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
