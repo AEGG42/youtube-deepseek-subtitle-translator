@@ -46,10 +46,14 @@ Context-aware YouTube subtitle translation for Chrome and Edge, powered by your 
 
 ## 安装
 
+**最新版安装包：** [下载 v1.8.6 ZIP](./youtube-deepseek-translator-v1.8.6.zip)
+
+下载后先解压 ZIP，再按下面的步骤加载：
+
 1. 打开 Chrome 的 `chrome://extensions/`，或 Edge 的 `edge://extensions/`。
 2. 打开右上角的“开发者模式”。
 3. 点击“加载已解压的扩展程序”。
-4. 选择本项目目录：`D:\fycj`。
+4. 选择刚才解压出的扩展文件夹（其中应直接包含 `manifest.json`）。
 5. 扩展会自动打开设置页。在设置页粘贴你自己的 DeepSeek API Key 并保存。
 
 扩展不会申请或创建密钥。DeepSeek API 的认证方式和接口格式可查看[官方 API 文档](https://api-docs.deepseek.com/api/deepseek-api)与[Chat Completions 文档](https://api-docs.deepseek.com/api/create-chat-completion)。

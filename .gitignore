@@ -1,5 +1,6 @@
 # Packaged extension archives
 youtube-deepseek-translator-v*.zip
+!youtube-deepseek-translator-v1.8.6.zip
 
 # Dependencies and generated reports
 node_modules/
