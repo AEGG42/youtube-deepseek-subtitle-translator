@@ -1,89 +1,44 @@
-# YouTube DeepSeek Subtitle Translator / YouTube DeepSeek 字幕翻译
+# YouTube DeepSeek 字幕翻译
 
-一个无需构建、可直接加载到 Chrome / Edge 的 Manifest V3 扩展。它优先获取当前视频的完整时间轴字幕，先把碎片 cue 合并并整理成独立句子，再分批预翻译并按播放时间逐句显示缓存译文；无法预取时再实时读取播放器字幕。翻译使用**你自己提供的 DeepSeek API Key**。
+使用你自己的 DeepSeek API Key，在 Chrome / Edge 中实时翻译 YouTube 字幕。支持整段预翻译、实时翻译、双语字幕和英文单词查询，无需构建即可安装。
 
-Context-aware YouTube subtitle translation for Chrome and Edge, powered by your own DeepSeek API Key. It prefetches timed captions when available, translates complete sentences with surrounding context, and displays synchronized bilingual subtitles.
+## 下载与安装
 
-项目中没有内置、生成或代填任何 API Key。
+**最新版：** [下载 v1.8.6 ZIP](./youtube-deepseek-translator-v1.8.6.zip)
 
-## 功能
+1. 下载并解压 ZIP。
+2. 打开 Chrome 的 `chrome://extensions/`，或 Edge 的 `edge://extensions/`。
+3. 开启“开发者模式”。
+4. 点击“加载已解压的扩展程序”，选择包含 `manifest.json` 的文件夹。
+5. 在自动打开的设置页中填写自己的 DeepSeek API Key。
 
-- 实时翻译 YouTube 普通字幕和自动字幕
-- 双语模式下悬停英文单词即可查看音标和中文释义，点击可固定或关闭词义卡片
-- 常用词优先查询扩展内置的 ECDICT 离线词典，不联网、不消耗 Token；未收录词可选择使用 DeepSeek 按当前字幕语境补充
-- 离线词典按首字母分片并按需加载；AI 查词结果在当前浏览器会话中缓存，避免重复请求
-- 预取完整时间轴字幕，先合并碎片 cue 并清理滚动字幕重叠，再按句末标点拆成一句一段
-- 长句不会再按 7 秒、2.8 秒或字符数从中间强制切开；会继续收集到句末标点、明确停顿、字幕节点结束或字幕轨结束
-- 当前段与下一段分别作为单段抢先请求并行翻译，不再等待未来多段一起返回；随后用两个后台任务按最多 18 段的大批次补齐整条字幕
-- 拖动进度条后立即重排未完成队列，新位置不必等待旧顺序翻完
-- 播放、暂停或拖动进度条时按时间码读取译文缓存，已完成部分无需等待 API
-- 下一段可以提前完成翻译，但只有播放时间到达该段起点后才允许显示；YouTube 原生字幕节点即使提前更新，也不会让译文抢跑
-- 相同视频、模型和目标语言的字幕会在当前浏览器会话中进行最长 6 小时的有界缓存；后台休眠后仍可恢复，重叠批次只请求未命中的条目
-- “重译当前字幕”会同时绕过实时和预翻译缓存，并用新结果更新当前位置缓存
-- 长广告或播放器延迟导致首次字幕轨发现失败时，会在正式字幕出现后自动恢复一次
-- 断网、超时或 API 故障会停止后台批量队列，避免失败请求被拆分放大
-- 直播、字幕轨暂不可用或某个批次未完成时自动回退到实时翻译
-- 实时兜底收到多句时按顺序逐句翻译，遇到句末标点约 90ms 提交；仍在增长且没有完整句边界的内容不会提前翻译
-- DeepSeek 流式片段只用于判断请求已开始返回，不直接写入字幕；最终响应完成后一次提交整段，避免“几个字 → 完整句”的跳变
-- 实时滚动字幕只翻译尚未提交的新后缀，避免把上一段反复扩展并重新显示
-- 自动字幕采用稳定前缀判断：同一句的后续修订会淡显上一版完整译文，直到新版完整译文到达；真正的新句不会错误沿用旧译文
-- 字幕节点短暂消失时保留约 950ms 的显示宽限，减少自动字幕间隙造成的闪烁
-- 实时提示词明确把输入视为可能尚未说完的片段，只翻译已经出现的内容，不擅自补全后文
-- 实时模式按原顺序携带最近四句“原文 + 已确认译文”，先按连续语篇理解代词、省略主语、时态和说话意图，再只翻译当前句；切换目标语言时会立即丢弃旧语言译文上下文
-- 整段预翻译会给每个批次补充前后各四句边界上下文，并把已缓存邻句的译文作为只读术语锚点；提示词要求保持专名、术语、代词、语气和既有译法一致，同时严格为每个字幕 ID 单独输出一句译文
-- 中英字幕合并为一张紧凑字幕卡，译文突出、原文弱化，减少大面积黑块遮挡
-- 弹窗沿用初版 `360 × 396` 的紧凑尺寸并使用无外框的灰色满铺背景，弹窗和设置页采用参考图的卡片化信息布局，同时保留 YouTube 风格深色配色
-- 扩展封面及浏览器工具栏图标使用项目内置的 “Video Translate” 主视觉，并提供 Chrome 所需的 16、32、48、128 像素规格
-- 字号会跟随播放器宽度平滑缩放；控制条出现时字幕自动避让
-- 相同预翻译字幕不会在每次播放进度更新时重复写入 DOM，减少闪动和无效重绘
-- 支持简体中文、繁體中文、英语、日语、韩语、西班牙语、法语、德语、葡萄牙语、俄语和阿拉伯语
-- 双语字幕或仅显示译文
-- 可调字号、背景深度、字幕高度和请求防抖
-- DeepSeek V4 Flash / V4 Pro
-- 有界双语上下文、内存缓存和重复请求合并
-- API Key 仅由扩展后台读取；扩展存储被限制为可信上下文访问，不会注入 YouTube 页面
-- 401、余额不足、限流、超时等错误的中文提示
+安装或更新后，请刷新已经打开的 YouTube 页面。
 
-## 安装
+## 主要功能
 
-**最新版安装包：** [下载 v1.8.6 ZIP](./youtube-deepseek-translator-v1.8.6.zip)
+- 翻译 YouTube 普通字幕、自动字幕和直播字幕
+- 优先预翻译完整字幕，无法预取时自动切换为实时翻译
+- 支持双语字幕或仅显示译文
+- 结合前后文翻译完整句子，减少断句和译文跳变
+- 英文单词悬停查词，常用词优先使用内置离线词典
+- 支持 11 种目标语言及字幕字号、背景和位置调节
 
-下载后先解压 ZIP，再按下面的步骤加载：
+## 使用方法
 
-1. 打开 Chrome 的 `chrome://extensions/`，或 Edge 的 `edge://extensions/`。
-2. 打开右上角的“开发者模式”。
-3. 点击“加载已解压的扩展程序”。
-4. 选择刚才解压出的扩展文件夹（其中应直接包含 `manifest.json`）。
-5. 扩展会自动打开设置页。在设置页粘贴你自己的 DeepSeek API Key 并保存。
+1. 打开带字幕的 YouTube 视频。
+2. 扩展会自动获取字幕并开始翻译。
+3. 如果没有自动显示，请打开 YouTube 播放器的 **CC** 字幕。
+4. 点击浏览器工具栏中的扩展图标，可以暂停、查看进度或重译当前字幕。
 
-扩展不会申请或创建密钥。DeepSeek API 的认证方式和接口格式可查看[官方 API 文档](https://api-docs.deepseek.com/api/deepseek-api)与[Chat Completions 文档](https://api-docs.deepseek.com/api/create-chat-completion)。
+## API Key 与隐私
 
-## 使用
+- 项目不包含、生成或代填任何 API Key。
+- API Key 保存在浏览器本地扩展存储中，只由扩展后台读取。
+- 字幕和必要上下文会发送到 DeepSeek API；翻译会消耗你的 API 额度。
+- 预翻译和查词缓存仅保留在当前浏览器会话中。
+- 共享电脑使用完毕后，建议在设置页清除 API Key。
 
-1. 打开任意 YouTube 视频。
-2. 默认会自动获取字幕轨并开始预翻译；工具栏状态会显示整段进度。
-3. 扩展会按视频时间轴在播放器内显示自定义双语字幕。若该视频无法预取字幕，请点击播放器的 **CC** 按钮启用实时翻译兜底。
-4. 点击浏览器工具栏中的扩展图标，可以暂停翻译、查看状态或重译当前字幕。
-5. 使用双语字幕时，将鼠标停在英文单词上可查看词义；触屏设备可点击单词。设置页可以分别关闭悬停查词或 AI 补充。
-
-扩展安装或更新时，已经打开的 YouTube 页面需要刷新一次。
-
-## 实时模式设计参考
-
-本项目借鉴了成熟双语字幕产品对可读性与上下文的处理，例如 [Trancy](https://www.trancy.org/) 的双语字幕与智能断句思路，以及 [沉浸式翻译](https://immersivetranslate.com/en/video/) 的实时双语字幕与样式定制。实时稳定策略参考了 [AWS Transcribe 的局部结果稳定化](https://docs.aws.amazon.com/transcribe/latest/dg/streaming-partial-results.html)、[Google Cloud 的 final / stability 结果模型](https://docs.cloud.google.com/speech-to-text/docs/reference/rest/v2/StreamingRecognitionResult) 和 [Whisper-Streaming 的 LocalAgreement 策略](https://arxiv.org/abs/2307.14743)。这里只借鉴交互与算法模式，没有接入这些产品或服务。
-
-DeepSeek 的 Chat Completions 请求本身不保存上一轮状态，因此扩展会在每次请求中显式重发有界上下文；详见 [DeepSeek 多轮对话文档](https://api-docs.deepseek.com/guides/multi_round_chat)。
-
-## API Key 与数据
-
-- API Key 保存在 `chrome.storage.local` 中，并通过 `TRUSTED_CONTEXTS` 访问级别禁止 YouTube 内容脚本读取；它不会出现在源码、页面 DOM 或字幕请求消息里。
-- 后台返回错误前会额外遮盖 `sk-...` 与 `Bearer ...` 形态的凭据，设置页使用纯文本节点显示服务端错误，不把外部错误内容插入 HTML。
-- 预翻译结果保存在仅限当前浏览器会话的 `chrome.storage.session` 中，浏览器重启、扩展更新或停用时会自动清除。
-- `chrome.storage.local` 是浏览器扩展存储，并不是操作系统钥匙串。在共享电脑上使用后请在设置页清除密钥。
-- 开启“预取并翻译整段字幕”后，扩展先在本地完成逐句分段，再把当前句和下一句拆成两个单句抢先请求并行发送，避免当前字幕等待未来内容；其余字幕按最多 18 句、约 2400 字符一批发送到 `https://api.deepseek.com/chat/completions`。每个请求会发送前后各最多四句边界原文；已命中缓存的邻句可能同时附带已确认译文，供语篇理解和术语一致性参考。关闭该功能或预取失败时，会发送当前稳定句、最近最多四句原文及其已有确认译文、目标语言和模型名。
-- 连接测试会发出一条很短的 Chat Completions 请求，可能产生少量 token 费用。
-- 悬停查词优先在本地完成。只有离线词典未收录且开启“词典未收录时使用 DeepSeek”时，才会把所选单词、当前英文字幕及已有译文发送给 DeepSeek；查词结果会在当前浏览器会话中缓存。
-- 翻译本身会消耗你的 DeepSeek API 额度。整段模式会在视频开始后较快消耗整条字幕对应的额度，可随时在设置中关闭。实时兜底会优先等待完整句边界，不会因等待时间到达就强制翻译半句话。
+DeepSeek 接口说明：[API 文档](https://api-docs.deepseek.com/api/deepseek-api) · [Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion)
 
 ## 开发检查
 
@@ -94,33 +49,15 @@ npm test
 npm run check
 ```
 
-`npm run check` 会检查 Manifest 引用、JavaScript 语法、HTML 资源路径，并扫描疑似硬编码的 Bearer API Key。
-
-离线词典来自 [ECDICT](https://github.com/skywind3000/ECDICT)，按其 MIT 许可证保留署名并裁剪为常用单词分片，许可与修改说明见 `assets/dictionary/NOTICE.txt`。如需重新生成，请自行下载 `ecdict.csv` 后运行：
-
-```powershell
-npm run dictionary:build -- path\to\ecdict.csv assets\dictionary
-```
-
-## 文件说明
-
-- `background.js`：读取密钥并调用 DeepSeek，处理缓存、超时和 API 错误
-- `content.js` / `content.css`：捕获 YouTube 字幕并渲染播放器内译文
-- `options.*`：完整设置页
-- `popup.*`：工具栏快速状态和开关
-- `assets/extension-cover.png` / `assets/extension-icon-*.png`：扩展封面与浏览器图标
-- `shared.js`：设置默认值、校验与公共常量
-- `translator-core.js`：请求体构造、响应解析与错误映射
-- `word-lookup-core.js`：英文分词、查词请求构造和响应校验
-- `assets/dictionary/*.json`：按首字母拆分的离线英汉词典
+`npm run check` 会检查 Manifest、JavaScript、资源路径和疑似硬编码的 API Key。
 
 ## 已知限制
 
-- 视频必须有 YouTube 字幕轨。完整字幕通过当前播放器提供的字幕轨地址读取；YouTube 若调整播放器内部结构，扩展会退回 CC 实时模式，相关适配可能需要更新。
-- 直播通常没有可一次性下载的完整字幕，因此使用实时翻译；生成期间只显示“翻译中”或同一句的上一版完整译文，不显示未完成的流式片段。
-- 完整句判断依赖字幕标点、明显停顿和字幕轨边界；标点质量较差且持续没有停顿时，译文会延后出现，以避免显示半句话。
-- 单句请求保留最高 2400 字符的安全上限，避免异常字幕轨或页面伪造超大文本造成无界 Token 消耗。
-- 首次打开视频时，当前位置所在批次仍需要一次网络请求；完成后同一页面内的播放和拖动会直接读取缓存。
-- 当前只允许访问 DeepSeek 官方 API 地址，避免为自定义地址申请过宽的浏览器权限。
-- 离线词典提供的是通用词义，不保证与每句字幕语境完全一致；专有名词、网络新词和复杂短语可能需要 DeepSeek 补充。
-- 悬停查词需要显示英文原文，因此仅在双语字幕模式中可用。
+- 视频需要提供 YouTube 字幕轨；直播和无法预取的字幕使用实时模式。
+- 字幕标点或时间轴质量较差时，翻译可能延迟或断句不准确。
+- 当前只支持 DeepSeek 官方 API 地址。
+- 离线词典为通用释义，复杂词义可选择使用 DeepSeek 补充。
+
+## 许可
+
+项目采用 [MIT License](./LICENSE)。离线词典来源于 [ECDICT](https://github.com/skywind3000/ECDICT)，许可与修改说明见 [`assets/dictionary/NOTICE.txt`](./assets/dictionary/NOTICE.txt)。
