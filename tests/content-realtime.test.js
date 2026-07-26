@@ -502,7 +502,7 @@ async function createContentHarness({
   };
 }
 
-test("continuous automatic-caption mutations wait for one stable segment", async () => {
+test("a stable live fragment waits for a complete sentence", async () => {
   const harness = await createContentHarness();
   const words = [];
 
@@ -521,12 +521,15 @@ test("continuous automatic-caption mutations wait for one stable segment", async
   harness.clock.tick(419);
   assert.equal(harness.requests.length, 0);
   harness.clock.tick(1);
+  assert.equal(harness.requests.length, 0);
 
+  harness.setCaption(`${words.join(" ")}.`);
+  harness.clock.tick(90);
   assert.equal(harness.requests.length, 1);
-  assert.equal(harness.requests[0].payload.text, words.join(" "));
+  assert.equal(harness.requests[0].payload.text, `${words.join(" ")}.`);
 });
 
-test("continuous speech commits bounded segments without a request flood", async () => {
+test("continuous speech is not cut at the former 2.8 second deadline", async () => {
   const harness = await createContentHarness({ deferTranslations: true });
   const words = [];
 
@@ -536,13 +539,12 @@ test("continuous speech commits bounded segments without a request flood", async
     harness.setCaption(words.join(" "));
   }
 
-  assert.ok(harness.requests.length >= 1);
-  assert.ok(
-    harness.requests.length <= 2,
-    `expected at most 2 bounded-segment requests, got ${harness.requests.length}`
-  );
-  assert.ok(harness.requests[0].at <= 2900);
-  assert.match(harness.requests[0].payload.text, /word28/);
+  assert.equal(harness.requests.length, 0);
+
+  harness.setCaption(`${words.join(" ")}.`);
+  harness.clock.tick(90);
+  assert.equal(harness.requests.length, 1);
+  assert.equal(harness.requests[0].payload.text, `${words.join(" ")}.`);
 });
 
 test("sentence-ending punctuation commits a live segment quickly", async () => {
@@ -559,6 +561,23 @@ test("sentence-ending punctuation commits a live segment quickly", async () => {
     harness.requests[0].payload.text,
     "This is one complete thought."
   );
+});
+
+test("live fallback translates multiple received sentences one at a time", async () => {
+  const harness = await createContentHarness({ deferTranslations: true });
+
+  harness.clock.tick(100);
+  harness.setCaption("First sentence. Second sentence.");
+  harness.clock.tick(90);
+
+  assert.equal(harness.requests.length, 1);
+  assert.equal(harness.requests[0].payload.text, "First sentence.");
+
+  harness.completeRequest(0, "第一句。");
+  harness.clock.tick(420);
+
+  assert.equal(harness.requests.length, 2);
+  assert.equal(harness.requests[1].payload.text, "Second sentence.");
 });
 
 test("a disappearing caption commits the last accumulated live segment", async () => {
@@ -583,31 +602,31 @@ test("live segments translate only the uncommitted cumulative suffix", async () 
   const harness = await createContentHarness({ deferTranslations: true });
 
   harness.clock.tick(100);
-  harness.setCaption("one two three");
-  harness.clock.tick(420);
-  assert.equal(harness.requests[0].payload.text, "one two three");
+  harness.setCaption("one two three.");
+  harness.clock.tick(90);
+  assert.equal(harness.requests[0].payload.text, "one two three.");
   harness.completeRequest(0, "一二三");
 
-  harness.setCaption("one two three four five six");
-  harness.clock.tick(420);
+  harness.setCaption("one two three. four five six.");
+  harness.clock.tick(90);
 
   assert.equal(harness.requests.length, 2);
-  assert.equal(harness.requests[1].payload.text, "four five six");
+  assert.equal(harness.requests[1].payload.text, "four five six.");
 });
 
 test("live segments remove overlap when the caption window rolls forward", async () => {
   const harness = await createContentHarness({ deferTranslations: true });
 
   harness.clock.tick(100);
-  harness.setCaption("one two three four");
-  harness.clock.tick(420);
+  harness.setCaption("one two three four.");
+  harness.clock.tick(90);
   harness.completeRequest(0, "一二三四");
 
-  harness.setCaption("three four five six");
-  harness.clock.tick(420);
+  harness.setCaption("three four. five six.");
+  harness.clock.tick(90);
 
   assert.equal(harness.requests.length, 2);
-  assert.equal(harness.requests[1].payload.text, "five six");
+  assert.equal(harness.requests[1].payload.text, "five six.");
 });
 
 test("live segments carry the previous completed bilingual context", async () => {
@@ -642,12 +661,23 @@ test("live bilingual context stays in transcript order", async () => {
   harness.setCaption("The team approved it yesterday.");
   harness.clock.tick(90);
   harness.completeRequest(1, "团队昨天批准了它。");
-  harness.setCaption("It will be announced next spring.");
+  harness.setCaption("The launch window is next spring.");
+  harness.clock.tick(90);
+  harness.completeRequest(2, "发布时间定在明年春天。");
+  harness.setCaption("Marketing will keep the codename.");
+  harness.clock.tick(90);
+  harness.completeRequest(3, "市场团队将继续使用这个代号。");
+  harness.setCaption("It will be announced after testing.");
   harness.clock.tick(90);
 
   assert.deepEqual(
-    Array.from(harness.requests[2].payload.context, (item) => item.source),
-    ["Aurora is our internal codename.", "The team approved it yesterday."]
+    Array.from(harness.requests[4].payload.context, (item) => item.source),
+    [
+      "Aurora is our internal codename.",
+      "The team approved it yesterday.",
+      "The launch window is next spring.",
+      "Marketing will keep the codename."
+    ]
   );
 });
 
@@ -991,6 +1021,116 @@ test("full-track prefetch translates and displays complete semantic segments", a
   assert.equal(harness.getOverlayState().translation, `batch:${secondSegment}`);
 });
 
+test("a long sentence is not cut at the former seven second limit", async () => {
+  const cues = Array.from({ length: 10 }, (_value, index) => ({
+    id: `cue-${index}`,
+    startMs: index * 1000,
+    endMs: (index + 1) * 1000,
+    text: index === 9 ? `word${index}.` : `word${index}`
+  }));
+  const harness = await createContentHarness({
+    prefetchEnabled: true,
+    currentTime: 0.2,
+    captionTrack: { videoId: "video-long-complete-sentence", cues }
+  });
+
+  harness.clock.tick(350);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(
+    harness.batchRequests[0].payload.cues[0].text,
+    cues.map((cue) => cue.text).join(" ")
+  );
+});
+
+test("short complete sentences are displayed one sentence at a time", async () => {
+  const harness = await createContentHarness({
+    prefetchEnabled: true,
+    currentTime: 0.2,
+    captionTrack: {
+      videoId: "video-short-sentences",
+      cues: [
+        { id: "cue-1", startMs: 0, endMs: 800, text: "Hi." },
+        { id: "cue-2", startMs: 800, endMs: 1700, text: "How are you?" }
+      ]
+    }
+  });
+
+  harness.clock.tick(350);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(
+    harness.batchRequests.slice(0, 2).map((request) => request.payload.cues[0].text),
+    ["Hi.", "How are you?"]
+  );
+  assert.equal(harness.getOverlayState().source, "Hi.");
+
+  harness.setCurrentTime(0.9);
+  assert.equal(harness.getOverlayState().source, "How are you?");
+});
+
+test("multiple sentences inside one timed cue are split for display", async () => {
+  const harness = await createContentHarness({
+    prefetchEnabled: true,
+    currentTime: 0.2,
+    captionTrack: {
+      videoId: "video-multi-sentence-cue",
+      cues: [
+        {
+          id: "cue-1",
+          startMs: 0,
+          endMs: 2000,
+          text: "First sentence. Second sentence."
+        }
+      ]
+    }
+  });
+
+  harness.clock.tick(350);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(
+    harness.batchRequests.slice(0, 2).map((request) => request.payload.cues[0].text),
+    ["First sentence.", "Second sentence."]
+  );
+  assert.equal(harness.getOverlayState().source, "First sentence.");
+
+  harness.setCurrentTime(1.2);
+  assert.equal(harness.getOverlayState().source, "Second sentence.");
+});
+
+test("sentence splitting removes a repeated completed rolling-caption prefix", async () => {
+  const harness = await createContentHarness({
+    prefetchEnabled: true,
+    currentTime: 0.2,
+    captionTrack: {
+      videoId: "video-repeated-sentence-prefix",
+      cues: [
+        {
+          id: "cue-1",
+          startMs: 0,
+          endMs: 1000,
+          text: "First sentence."
+        },
+        {
+          id: "cue-2",
+          startMs: 900,
+          endMs: 2500,
+          text: "First sentence. Second sentence."
+        }
+      ]
+    }
+  });
+
+  harness.clock.tick(350);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(
+    harness.batchRequests.slice(0, 2).map((request) => request.payload.cues[0].text),
+    ["First sentence.", "Second sentence."]
+  );
+});
+
 test("caption batches include neighboring semantic segments across boundaries", async () => {
   const cues = Array.from({ length: 12 }, (_value, index) => ({
     id: `cue-${index}`,
@@ -1009,11 +1149,11 @@ test("caption batches include neighboring semantic segments across boundaries", 
 
   assert.equal(
     harness.batchRequests[0].payload.context.before.join(" | "),
-    "This is complete segment number 2. | This is complete segment number 3."
+    "This is complete segment number 0. | This is complete segment number 1. | This is complete segment number 2. | This is complete segment number 3."
   );
   assert.equal(
     harness.batchRequests[0].payload.context.after.join(" | "),
-    "This is complete segment number 5. | This is complete segment number 6."
+    "This is complete segment number 5. | This is complete segment number 6. | This is complete segment number 7. | This is complete segment number 8."
   );
 });
 
@@ -1256,7 +1396,7 @@ test("seeking reprioritizes the next queued caption batch", async () => {
     id: `cue-${index}`,
     startMs: index * 1000,
     endMs: (index + 1) * 1000,
-    text: `subtitle ${index}`
+    text: `subtitle ${index}.`
   }));
   const harness = await createContentHarness({
     deferBatches: true,

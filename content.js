@@ -12,29 +12,27 @@
   const INITIAL_REQUEST_DELAY_MS = 90;
   const LIVE_SEGMENT_SETTLE_MIN_MS = 420;
   const LIVE_SEGMENT_SETTLE_MAX_MS = 900;
-  const LIVE_SEGMENT_MAX_WAIT_MS = 2800;
   const OVERLAY_CLEAR_DELAY_MS = 950;
   const CAPTION_TRACK_LOAD_DELAY_MS = 350;
   const CAPTION_SEGMENT_GAP_MS = 850;
-  const CAPTION_SEGMENT_MIN_DURATION_MS = 1800;
-  const CAPTION_SEGMENT_MIN_CHARACTERS = 24;
-  const CAPTION_SEGMENT_MAX_DURATION_MS = 7000;
-  const CAPTION_SEGMENT_MAX_CHARACTERS = 160;
   const CAPTION_URGENT_BATCH_SIZE = 2;
   const CAPTION_URGENT_BATCH_MAX_CHARS = 600;
   const CAPTION_BACKGROUND_BATCH_SIZE = 18;
   const CAPTION_BACKGROUND_BATCH_MAX_CHARS = 2400;
   const CAPTION_PREFETCH_WORKERS = 2;
-  const CAPTION_CONTEXT_SEGMENTS = 2;
+  const CAPTION_CONTEXT_SEGMENTS = 4;
   const CAPTION_DISPLAY_END_GRACE_MS = 180;
   const CAPTION_TRACK_RETRY_DELAYS_MS = [800, 1600, 3000, 5000];
   const WORD_LOOKUP_HOVER_DELAY_MS = 280;
+  const CAPTION_SENTENCE_SEGMENTER =
+    typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
+      ? new Intl.Segmenter(undefined, { granularity: "sentence" })
+      : null;
 
   let settings = Shared.toPublicSettings(Shared.DEFAULT_SETTINGS);
   let observer = null;
   let observedMutationRoot = null;
   let readTimer = null;
-  let liveSegmentDeadlineTimer = null;
   let clearTimer = null;
   let streamProgressRequestId = 0;
   let streamProgressReceivedForRequest = false;
@@ -174,7 +172,7 @@
         captionPrefetchError = null;
       }
       const shouldCommitSegment =
-        captionTextEndsSentence(captionText) ||
+        captionTextHasCompleteSentence(captionText) ||
         (!captionText && Boolean(pendingLiveCaptionText));
       const captionReadDelay = shouldCommitSegment
         ? INITIAL_REQUEST_DELAY_MS
@@ -324,8 +322,6 @@
   function scheduleCaptionRead(delay) {
     if (delay === 0) {
       clearTimeout(readTimer);
-      clearTimeout(liveSegmentDeadlineTimer);
-      liveSegmentDeadlineTimer = null;
       readTimer = setTimeout(readCurrentCaption, 0);
       return;
     }
@@ -348,15 +344,6 @@
     );
     clearTimeout(readTimer);
     readTimer = setTimeout(readCurrentCaption, settleDelay);
-
-    if (!liveSegmentDeadlineTimer) {
-      liveSegmentDeadlineTimer = setTimeout(() => {
-        liveSegmentDeadlineTimer = null;
-        clearTimeout(readTimer);
-        readTimer = null;
-        readCurrentCaption();
-      }, LIVE_SEGMENT_MAX_WAIT_MS);
-    }
   }
 
   function scheduleCaptionTrackLoad(
@@ -484,16 +471,18 @@
         current = null;
         return;
       }
-      segments.push({
-        id: `segment-${segments.length}-${current.startMs}`,
-        startMs: current.startMs,
-        endMs: current.endMs,
-        text: current.text
-      });
+      appendSentenceCaptionSegments(segments, current);
       current = null;
     };
 
-    for (const cue of cues) {
+    for (const rawCue of cues) {
+      const cue = trimRepeatedCompletedCaptionPrefix(
+        rawCue,
+        segments.at(-1)
+      );
+      if (!cue) {
+        continue;
+      }
       if (!current) {
         current = {
           startMs: cue.startMs,
@@ -503,13 +492,8 @@
       } else {
         const gapMs = cue.startMs - current.endMs;
         const mergedText = mergeCaptionSegmentText(current.text, cue.text);
-        const mergedDurationMs =
-          Math.max(current.endMs, cue.endMs) - current.startMs;
-        const exceedsLimit =
-          mergedDurationMs > CAPTION_SEGMENT_MAX_DURATION_MS ||
-          Array.from(mergedText).length > CAPTION_SEGMENT_MAX_CHARACTERS;
 
-        if (gapMs >= CAPTION_SEGMENT_GAP_MS || exceedsLimit) {
+        if (gapMs >= CAPTION_SEGMENT_GAP_MS) {
           flushCurrent();
           current = {
             startMs: cue.startMs,
@@ -541,20 +525,108 @@
     return segments.slice(0, 5000);
   }
 
-  function captionSegmentIsComplete(segment) {
-    if (!segment?.text) {
-      return false;
+  function trimRepeatedCompletedCaptionPrefix(cue, previousSegment) {
+    const currentText = Shared.normalizeWhitespace(cue?.text);
+    const previousText = Shared.normalizeWhitespace(previousSegment?.text);
+    if (
+      !currentText ||
+      !previousText ||
+      !captionTextEndsSentence(previousText) ||
+      !currentText.startsWith(previousText)
+    ) {
+      return cue;
     }
-    const durationMs = segment.endMs - segment.startMs;
-    const characterCount = Array.from(segment.text).length;
-    const hasSentenceEnding = captionTextEndsSentence(segment.text);
-    return (
-      (hasSentenceEnding &&
-        (durationMs >= CAPTION_SEGMENT_MIN_DURATION_MS ||
-          characterCount >= CAPTION_SEGMENT_MIN_CHARACTERS)) ||
-      durationMs >= CAPTION_SEGMENT_MAX_DURATION_MS ||
-      characterCount >= CAPTION_SEGMENT_MAX_CHARACTERS
+
+    const remainingText = Shared.normalizeWhitespace(
+      currentText.slice(previousText.length)
     );
+    if (!remainingText) {
+      return null;
+    }
+
+    const durationMs = Math.max(1, cue.endMs - cue.startMs);
+    const prefixRatio = Math.min(
+      0.95,
+      Array.from(previousText).length / Array.from(currentText).length
+    );
+    return {
+      ...cue,
+      startMs: Math.min(
+        cue.endMs - 1,
+        cue.startMs + Math.round(durationMs * prefixRatio)
+      ),
+      text: remainingText
+    };
+  }
+
+  function captionSegmentIsComplete(segment) {
+    return Boolean(segment?.text && captionTextEndsSentence(segment.text));
+  }
+
+  function appendSentenceCaptionSegments(segments, segment) {
+    const sentences = splitCaptionTextIntoSentences(segment.text);
+    const durationMs = Math.max(1, segment.endMs - segment.startMs);
+    const weights = sentences.map((sentence) =>
+      Math.max(1, Array.from(sentence).length)
+    );
+    const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+    let consumedWeight = 0;
+
+    for (let index = 0; index < sentences.length; index += 1) {
+      const startMs =
+        segment.startMs +
+        Math.round((durationMs * consumedWeight) / totalWeight);
+      consumedWeight += weights[index];
+      const endMs =
+        index === sentences.length - 1
+          ? segment.endMs
+          : segment.startMs +
+            Math.round((durationMs * consumedWeight) / totalWeight);
+      segments.push({
+        id: `segment-${segments.length}-${startMs}`,
+        startMs,
+        endMs: Math.max(startMs + 1, endMs),
+        text: sentences[index]
+      });
+    }
+  }
+
+  function splitCaptionTextIntoSentences(text) {
+    const normalized = Shared.normalizeWhitespace(text);
+    if (!normalized) {
+      return [];
+    }
+
+    if (CAPTION_SENTENCE_SEGMENTER) {
+      const sentences = Array.from(
+        CAPTION_SENTENCE_SEGMENTER.segment(normalized),
+        ({ segment }) => Shared.normalizeWhitespace(segment)
+      ).filter(Boolean);
+      if (sentences.length) {
+        return sentences;
+      }
+    }
+
+    return (
+      normalized.match(
+        /.+?(?:[.!?。！？…]+["'”’）)\]】]*)(?=\s|$)|.+$/gu
+      ) || [normalized]
+    ).map((sentence) => Shared.normalizeWhitespace(sentence));
+  }
+
+  function captionTextHasCompleteSentence(text) {
+    return splitCaptionTextIntoSentences(text).some((sentence) =>
+      captionTextEndsSentence(sentence)
+    );
+  }
+
+  function getNextLiveSentence(text) {
+    const normalized = Shared.normalizeWhitespace(text);
+    const sentences = splitCaptionTextIntoSentences(normalized);
+    if (sentences.length > 1 && captionTextEndsSentence(sentences[0])) {
+      return sentences[0];
+    }
+    return normalized;
   }
 
   function captionTextEndsSentence(text) {
@@ -1165,8 +1237,6 @@
 
   function readCurrentCaption() {
     readTimer = null;
-    clearTimeout(liveSegmentDeadlineTimer);
-    liveSegmentDeadlineTimer = null;
 
     if (!settings.enabled) {
       removeOverlay();
@@ -1178,10 +1248,13 @@
     const rawCaptionText = Shared.normalizeWhitespace(
       visibleCaptionText || pendingLiveCaptionText
     );
+    const uncommittedLiveText = isForcedRequest
+      ? ""
+      : getUncommittedLiveCaptionText(rawCaptionText);
     const text = Shared.normalizeWhitespace(
       isForcedRequest
         ? forcedSourceText || rawCaptionText
-        : getUncommittedLiveCaptionText(rawCaptionText)
+        : getNextLiveSentence(uncommittedLiveText)
     );
 
     if (!rawCaptionText && !text) {
@@ -1197,6 +1270,15 @@
 
     if (!isForcedRequest && tryRenderPrefetchedCaption(rawCaptionText)) {
       pendingLiveCaptionText = "";
+      return;
+    }
+
+    if (
+      !isForcedRequest &&
+      visibleCaptionText &&
+      text &&
+      !captionTextEndsSentence(text)
+    ) {
       return;
     }
 
@@ -1239,7 +1321,11 @@
     rememberCaption(text);
     lastRequestedText = text;
     if (!isForcedRequest) {
-      lastCommittedLiveCaptionText = rawCaptionText;
+      lastCommittedLiveCaptionText = getCommittedLiveCaptionText(
+        rawCaptionText,
+        uncommittedLiveText,
+        text
+      );
     }
     pendingLiveCaptionText = "";
     isTranslating = true;
@@ -1412,6 +1498,24 @@
     }
 
     return current;
+  }
+
+  function getCommittedLiveCaptionText(rawText, uncommittedText, committedText) {
+    const raw = Shared.normalizeWhitespace(rawText);
+    const uncommitted = Shared.normalizeWhitespace(uncommittedText);
+    const committed = Shared.normalizeWhitespace(committedText);
+    if (!raw || !committed || committed === uncommitted) {
+      return raw;
+    }
+
+    const sentenceIndex = raw.indexOf(committed);
+    if (sentenceIndex >= 0) {
+      return Shared.normalizeWhitespace(
+        raw.slice(0, sentenceIndex + committed.length)
+      );
+    }
+
+    return mergeCaptionSegmentText(lastCommittedLiveCaptionText, committed);
   }
 
   function captionTextsAreRelated(firstText, secondText) {
@@ -1963,10 +2067,8 @@
     cancelActiveTranslation();
     latestRequestId += 1;
     clearTimeout(readTimer);
-    clearTimeout(liveSegmentDeadlineTimer);
     clearTimeout(clearTimer);
     readTimer = null;
-    liveSegmentDeadlineTimer = null;
     clearTimer = null;
     lastObservedText = "";
     pendingLiveCaptionText = "";

@@ -24,6 +24,8 @@ test("buildChatRequest builds a non-thinking V4 subtitle request", () => {
     request.messages[0].content,
     /terminology and register/i
   );
+  assert.match(request.messages[0].content, /continuous transcript/i);
+  assert.match(request.messages[0].content, /omitted subjects/i);
 
   const input = JSON.parse(request.messages[1].content);
   assert.equal(input.subtitle, "How are you?");
@@ -50,16 +52,18 @@ test("buildChatRequest treats subtitle instructions as quoted user data", () => 
   );
 });
 
-test("cleanContext keeps only two compact bounded items", () => {
+test("cleanContext keeps four compact bounded items", () => {
   const context = Core.cleanContext([
     "one",
     "two",
     "three",
+    "four",
+    "five",
     "x".repeat(700)
   ]);
 
-  assert.equal(context[0], "three");
-  assert.equal(context[1].length, 240);
+  assert.deepEqual(context.slice(0, 3), ["three", "four", "five"]);
+  assert.equal(context[3].length, 240);
 });
 
 test("cleanContext preserves bounded source and translation pairs", () => {
@@ -84,22 +88,30 @@ test("cleanBatchContext keeps the nearest bilingual boundary items", () => {
     before: [
       "old",
       { source: "Previous term: Aurora", translation: "上一术语：极光" },
+      "third before",
+      "second before",
       "immediately before"
     ],
     after: [
       { source: "Next segment", translation: "下一段" },
       "second after",
+      "third after",
+      "fourth after",
       "too far after"
     ]
   });
 
   assert.deepEqual(context.before, [
     { source: "Previous term: Aurora", translation: "上一术语：极光" },
+    "third before",
+    "second before",
     "immediately before"
   ]);
   assert.deepEqual(context.after, [
     { source: "Next segment", translation: "下一段" },
-    "second after"
+    "second after",
+    "third after",
+    "fourth after"
   ]);
 });
 
@@ -167,6 +179,8 @@ test("buildBatchChatRequest keeps cue ids and requests strict JSON", () => {
   assert.deepEqual(request.thinking, { type: "disabled" });
   assert.match(request.messages[0].content, /complete subtitle segment/i);
   assert.match(request.messages[0].content, /terminology, names, pronouns/i);
+  assert.match(request.messages[0].content, /continuous discourse/i);
+  assert.match(request.messages[0].content, /exactly one translation per id/i);
   assert.deepEqual(
     input.subtitles.map(({ id }) => id),
     ["cue-1", "cue-2"]

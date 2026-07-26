@@ -1381,6 +1381,7 @@ function storeCache(key, translation) {
 
 function buildCaptionTranslationCacheKey(videoId, cue, settings) {
   return JSON.stringify([
+    Core.TRANSLATION_PROMPT_VERSION,
     settings.model,
     settings.targetLanguage,
     videoId,
