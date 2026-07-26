@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube DeepSeek 字幕翻译",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "minimum_chrome_version": "102",
   "description": "使用你自己的 DeepSeek API Key 预翻译或实时翻译 YouTube 字幕。",
   "icons": {

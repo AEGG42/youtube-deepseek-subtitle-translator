@@ -4,11 +4,11 @@
   const API_BASE_URL = "https://api.deepseek.com";
   const API_ENDPOINT = `${API_BASE_URL}/chat/completions`;
   const TRANSLATION_PROMPT_VERSION = 2;
-  const MAX_SUBTITLE_LENGTH = 600;
+  const MAX_SUBTITLE_LENGTH = 2400;
   const MAX_CONTEXT_ITEMS = 4;
   const MAX_CONTEXT_ITEM_LENGTH = 240;
   const MAX_BATCH_CUES = 18;
-  const MAX_BATCH_CUE_LENGTH = 400;
+  const MAX_BATCH_CUE_LENGTH = 2400;
   const MAX_BATCH_TRANSLATION_LENGTH = 1600;
 
   function cleanSubtitle(value, maxLength = MAX_SUBTITLE_LENGTH) {

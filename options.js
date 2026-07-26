@@ -308,7 +308,7 @@
     const stateIcon = hasStoredApiKey
       ? "assets/icons/circle-check.svg"
       : "assets/icons/alert-circle.svg";
-    keyState.innerHTML = `<img src="${stateIcon}" alt="" />${stateText}`;
+    renderIconText(keyState, stateIcon, stateText);
     keyState.classList.toggle("state-badge--success", hasStoredApiKey);
     keyState.classList.toggle("state-badge--warning", !hasStoredApiKey);
     clearKeyButton.disabled = !hasStoredApiKey;
@@ -398,9 +398,19 @@
       kind === "error"
         ? "assets/icons/alert-circle.svg"
         : "assets/icons/circle-check.svg";
-    connectionResult.innerHTML = `<img src="${icon}" alt="" />${message}`;
+    renderIconText(connectionResult, icon, message);
     connectionResult.classList.toggle("success", kind === "success");
     connectionResult.classList.toggle("error", kind === "error");
+  }
+
+  function renderIconText(container, iconPath, message) {
+    const icon = document.createElement("img");
+    icon.src = iconPath;
+    icon.alt = "";
+    container.replaceChildren(
+      icon,
+      document.createTextNode(String(message ?? ""))
+    );
   }
 
   function handleResetDefaults() {

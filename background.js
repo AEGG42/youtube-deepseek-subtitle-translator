@@ -1708,9 +1708,17 @@ function isYouTubeSender(sender) {
 function serializeError(error) {
   return {
     code: String(error?.code || "UNKNOWN_ERROR"),
-    message: String(error?.message || "发生未知错误").slice(0, 300),
+    message: redactCredentialLikeText(
+      error?.message || "发生未知错误"
+    ).slice(0, 300),
     status: Number.isInteger(error?.status) ? error.status : undefined
   };
+}
+
+function redactCredentialLikeText(value) {
+  return String(value ?? "")
+    .replace(/\bBearer\s+[^\s"'<>]+/gi, "Bearer [redacted]")
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "sk-[redacted]");
 }
 
 async function updateActionBadge(settings) {

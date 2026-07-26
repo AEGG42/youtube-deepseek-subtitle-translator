@@ -727,6 +727,94 @@ test("background translates a caption batch without exposing the stored key", as
   assert.equal(Object.hasOwn(response, "apiKey"), false);
 });
 
+test("background redacts credential-shaped values from returned errors", async () => {
+  const harness = createBackgroundHarness({
+    fetch() {
+      return {
+        ok: false,
+        status: 422,
+        async text() {
+          return JSON.stringify({
+            error: {
+              message:
+                "invalid sk-live-super-secret-value and Bearer leaked-header-value-123456"
+            }
+          });
+        }
+      };
+    }
+  });
+
+  const response = await harness.dispatch(
+    {
+      type: "TRANSLATE_SUBTITLE",
+      payload: { text: "Hello.", context: [], requestId: 701 }
+    },
+    {
+      id: "test-extension",
+      url: "https://www.youtube.com/watch?v=redact-error",
+      tab: {
+        id: 701,
+        url: "https://www.youtube.com/watch?v=redact-error"
+      }
+    }
+  );
+
+  assert.equal(response.ok, false);
+  assert.doesNotMatch(response.error.message, /super-secret|leaked-header/i);
+  assert.match(response.error.message, /redacted/i);
+});
+
+test("background sends a collected complete long sentence without truncating it", async () => {
+  const longSentence = `${"word ".repeat(120).trim()}.`;
+  const harness = createBackgroundHarness({
+    fetch(_url, options) {
+      const body = JSON.parse(options.body);
+      const input = JSON.parse(body.messages[1].content);
+      assert.equal(input.subtitles[0].text, longSentence);
+
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            model: "deepseek-v4-flash",
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    translations: [{ id: "cue-long", text: "完整长句译文。" }]
+                  })
+                }
+              }
+            ]
+          });
+        }
+      };
+    }
+  });
+
+  const response = await harness.dispatch(
+    {
+      type: "TRANSLATE_CAPTION_BATCH",
+      payload: {
+        videoId: "video-long-sentence",
+        cues: [{ id: "cue-long", text: longSentence }]
+      }
+    },
+    {
+      id: "test-extension",
+      url: "https://www.youtube.com/watch?v=video-long-sentence",
+      tab: {
+        id: 621,
+        url: "https://www.youtube.com/watch?v=video-long-sentence"
+      }
+    }
+  );
+
+  assert.equal(response.ok, true);
+});
+
 test("identical caption batches reuse the bounded background cache", async () => {
   const harness = createBackgroundHarness();
   const sender = {
