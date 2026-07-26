@@ -1,6 +1,8 @@
-# YouTube DeepSeek 字幕翻译
+# YouTube DeepSeek Subtitle Translator / YouTube DeepSeek 字幕翻译
 
 一个无需构建、可直接加载到 Chrome / Edge 的 Manifest V3 扩展。它优先获取当前视频的完整时间轴字幕，先把碎片 cue 合并并整理成独立句子，再分批预翻译并按播放时间逐句显示缓存译文；无法预取时再实时读取播放器字幕。翻译使用**你自己提供的 DeepSeek API Key**。
+
+Context-aware YouTube subtitle translation for Chrome and Edge, powered by your own DeepSeek API Key. It prefetches timed captions when available, translates complete sentences with surrounding context, and displays synchronized bilingual subtitles.
 
 项目中没有内置、生成或代填任何 API Key。
 
